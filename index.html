@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>バーポモドーロ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#e4e8ee">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -53,6 +57,7 @@ body {
   background: var(--bg); color: var(--fg);
   font-family: var(--font-ui); font-size: 14px;
   padding-inline: 16px; padding-block: 28px;
+  min-height: 100%;
 }
 .app { max-width: 920px; margin-inline: auto; display: flex; flex-direction: column; gap: 22px; }
 .app[data-mode="short"] { --on: var(--break-on); }
