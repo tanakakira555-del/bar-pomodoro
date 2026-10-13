@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>バーポモドーロ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: 実機の目盛りバータイマーを横長の本体として中央に置き、下に操作と設定を並べる */
+:root {
+  color-scheme: light;
+  --bg: #e4e8ee;
+  --fg: #1c2530;
+  --muted: #5d6877;
+  --body: #f7f7f4;
+  --body-edge: #cfd3d9;
+  --panel: #d6dad6;
+  --seg-off: #c3c8c3;
+  --lcd: #c9d0c2;
+  --lcd-fg: #1c2318;
+  --btn: #ffffff;
+  --btn-line: #c5cbd4;
+  --focus-on: #1d2c3d;
+  --break-on: #1d6b62;
+  --long-on: #6a4a8c;
+  --on: var(--focus-on);
+  --font-ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --font-lcd: "Share Tech Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161b; --fg: #e6eaef; --muted: #98a2b0;
+    --body: #232932; --body-edge: #353d49; --panel: #171b21;
+    --seg-off: #2b323b; --lcd: #2c3428; --lcd-fg: #d4ecbd;
+    --btn: #2b323c; --btn-line: #414a57;
+    --focus-on: #9cc0f0; --break-on: #6fd4c2; --long-on: #c6a7ee;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161b; --fg: #e6eaef; --muted: #98a2b0;
+  --body: #232932; --body-edge: #353d49; --panel: #171b21;
+  --seg-off: #2b323b; --lcd: #2c3428; --lcd-fg: #d4ecbd;
+  --btn: #2b323c; --btn-line: #414a57;
+  --focus-on: #9cc0f0; --break-on: #6fd4c2; --long-on: #c6a7ee;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-ui); font-size: 14px;
+  padding-inline: 16px; padding-block: 28px;
+}
+.app { max-width: 920px; margin-inline: auto; display: flex; flex-direction: column; gap: 22px; }
+.app[data-mode="short"] { --on: var(--break-on); }
+.app[data-mode="long"] { --on: var(--long-on); }
+
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.05rem; font-weight: 700; letter-spacing: .04em; }
+.status { color: var(--muted); font-size: .9rem; min-height: 1.3em; }
+
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tab {
+  font: inherit; font-size: .9rem; font-weight: 500; color: var(--muted);
+  background: transparent; border: 1px solid var(--btn-line); border-radius: 6px;
+  padding: 7px 14px; cursor: pointer;
+}
+.tab[aria-selected="true"] { color: var(--fg); background: var(--btn); border-color: var(--on); box-shadow: inset 0 -3px 0 var(--on); }
+
+/* 本体 */
+.unit {
+  background: var(--body); border: 1px solid var(--body-edge); border-radius: 14px;
+  padding: clamp(12px, 2.4vw, 22px);
+  display: flex; gap: clamp(10px, 2vw, 18px); align-items: stretch;
+  box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 18px 40px -26px rgba(10,20,40,.55);
+}
+.panel { flex: 1; min-width: 0; background: var(--panel); border-radius: 8px; padding: clamp(10px, 2vw, 16px); display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.bar { display: flex; gap: clamp(2px, .4vw, 4px); height: clamp(64px, 12vw, 120px); }
+.seg { flex: 1; background: var(--seg-off); border-radius: 2px; overflow: hidden; }
+.seg i { display: block; height: 100%; background: var(--on); width: 0; }
+.scale { display: flex; justify-content: space-between; font-family: var(--font-lcd); font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lcd {
+  flex: 0 0 clamp(120px, 28%, 230px); background: var(--lcd); color: var(--lcd-fg);
+  border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between;
+  border: 1px solid var(--body-edge);
+}
+.lcd .mode { font-size: .78rem; letter-spacing: .08em; display: flex; justify-content: space-between; gap: 6px; }
+.lcd .time { font-family: var(--font-lcd); font-size: clamp(2.1rem, 7.4vw, 4.6rem); line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.dots { display: flex; gap: 5px; }
+.dots span { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--lcd-fg); }
+.dots span.done { background: var(--lcd-fg); }
+
+/* 操作 */
+.controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.btn {
+  font: inherit; font-weight: 700; font-size: 1rem; color: var(--fg);
+  background: var(--btn); border: 1px solid var(--btn-line); border-radius: 8px;
+  padding: 11px 22px; cursor: pointer;
+}
+.btn.primary { background: var(--on); border-color: var(--on); color: var(--bg); min-width: 8.5em; }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible { outline: 2px solid var(--on); outline-offset: 2px; }
+.spacer { flex: 1; }
+.hint { color: var(--muted); font-size: .8rem; }
+
+details { border-top: 1px solid var(--body-edge); padding-top: 14px; }
+summary { cursor: pointer; font-weight: 500; font-size: .9rem; color: var(--muted); }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-top: 14px; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--muted); }
+input[type="number"] {
+  font: inherit; font-size: 1rem; color: var(--fg); background: var(--btn);
+  border: 1px solid var(--btn-line); border-radius: 6px; padding: 8px 10px; width: 100%;
+}
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--fg); }
+@media (prefers-reduced-motion: no-preference) { .btn, .tab { transition: background .15s, border-color .15s; } }
+@media (max-width: 520px) { .unit { flex-direction: column; } .lcd { flex-basis: auto; } }
+</style>
+</head>
+<body>
+<div class="app" id="app" data-mode="focus">
+  <header>
+    <h1>バーポモドーロ</h1>
+    <div class="status" id="status" aria-live="polite">スタートで集中を始めます</div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="モード">
+    <button class="tab" role="tab" id="tab-focus" data-mode="focus" aria-selected="true">集中</button>
+    <button class="tab" role="tab" id="tab-short" data-mode="short" aria-selected="false">休憩</button>
+    <button class="tab" role="tab" id="tab-long" data-mode="long" aria-selected="false">長い休憩</button>
+  </div>
+
+  <div class="unit" role="timer" aria-label="残り時間">
+    <div class="panel">
+      <div class="bar" id="bar"></div>
+      <div class="scale" id="scale"></div>
+    </div>
+    <div class="lcd">
+      <div class="mode"><span id="lcd-mode">集中</span><span id="lcd-cycle">1/4</span></div>
+      <div class="time" id="time">25:00</div>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="toggle">スタート</button>
+    <button class="btn" id="reset">リセット</button>
+    <button class="btn" id="skip">次へ</button>
+    <span class="spacer"></span>
+    <button class="btn" id="full">全画面</button>
+  </div>
+  <div class="hint">Space で開始・一時停止、R でリセット、N で次へ。バーは右から左へ減ります。</div>
+
+  <details>
+    <summary>時間と動作の設定</summary>
+    <div class="settings">
+      <label for="set-focus">集中（分）<input type="number" id="set-focus" min="1" max="180" value="25"></label>
+      <label for="set-short">休憩（分）<input type="number" id="set-short" min="1" max="60" value="5"></label>
+      <label for="set-long">長い休憩（分）<input type="number" id="set-long" min="1" max="120" value="15"></label>
+      <label class="check" for="set-auto"><input type="checkbox" id="set-auto"> 終了後に自動で次を始める</label>
+      <label class="check" for="set-sound"><input type="checkbox" id="set-sound" checked> 終了時に音を鳴らす</label>
+    </div>
+  </details>
+</div>
+
+<script>
+(function () {
+  var N = 30;
+  var LABEL = { focus: "集中", short: "休憩", long: "長い休憩" };
+  var cfg = { focus: 25, short: 5, long: 15, auto: false, sound: true };
+  try {
+    var saved = JSON.parse(localStorage.getItem("bar-pomodoro-cfg") || "null");
+    if (saved) for (var k in saved) if (k in cfg) cfg[k] = saved[k];
+  } catch (e) {}
+
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $("app"), bar = $("bar"), scale = $("scale");
+  var state = { mode: "focus", total: 0, remaining: 0, running: false, endAt: 0, done: 0 };
+  var raf = 0, audio = null, wake = null;
+
+  // 本体のバーを作る
+  var fills = [];
+  for (var i = 0; i < N; i++) {
+    var s = document.createElement("div"); s.className = "seg";
+    var f = document.createElement("i"); s.appendChild(f); bar.appendChild(s); fills.push(f);
+  }
+  var dotEls = [];
+  for (var d = 0; d < 4; d++) { var e = document.createElement("span"); $("dots").appendChild(e); dotEls.push(e); }
+
+  function ms(mode) { return cfg[mode] * 60000; }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function fmt(t) { var s = Math.ceil(t / 1000); return pad(Math.floor(s / 60)) + ":" + pad(s % 60); }
+
+  function setMode(mode) {
+    state.mode = mode; state.total = ms(mode); state.remaining = state.total;
+    state.running = false; cancelAnimationFrame(raf); releaseWake();
+    app.setAttribute("data-mode", mode);
+    ["focus", "short", "long"].forEach(function (m) {
+      $("tab-" + m).setAttribute("aria-selected", m === mode ? "true" : "false");
+    });
+    buildScale(); render();
+  }
+
+  function buildScale() {
+    var mins = state.total / 60000, html = "";
+    for (var q = 0; q <= 4; q++) {
+      var v = mins * q / 4;
+      html += "<span>" + (Math.round(v * 10) / 10) + (q === 4 ? "分" : "") + "</span>";
+    }
+    scale.innerHTML = html;
+  }
+
+  function render() {
+    var frac = state.total ? state.remaining / state.total : 0;
+    for (var i = 0; i < N; i++) {
+      var p = Math.max(0, Math.min(1, (frac - i / N) * N));
+      fills[i].style.width = (p * 100) + "%";
+    }
+    var t = fmt(state.remaining);
+    $("time").textContent = t;
+    $("lcd-mode").textContent = LABEL[state.mode];
+    var pos = (state.done % 4) + (state.mode === "focus" ? 1 : 0);
+    $("lcd-cycle").textContent = (state.mode === "long" ? 4 : Math.max(1, pos)) + "/4";
+    var filled = state.mode === "long" ? 4 : state.done % 4;
+    dotEls.forEach(function (el, i) { el.className = i < filled ? "done" : ""; });
+    $("toggle").textContent = state.running ? "一時停止" : (state.remaining < state.total ? "再開" : "スタート");
+    document.title = state.running ? t + " " + LABEL[state.mode] + " | バーポモドーロ" : "バーポモドーロ";
+  }
+
+  function loop() {
+    if (!state.running) return;
+    state.remaining = Math.max(0, state.endAt - Date.now());
+    render();
+    if (state.remaining <= 0) { complete(); return; }
+    raf = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    if (state.remaining <= 0) state.remaining = state.total;
+    ensureAudio();
+    state.running = true; state.endAt = Date.now() + state.remaining;
+    $("status").textContent = LABEL[state.mode] + "中";
+    requestWake(); loop();
+  }
+  function pause() {
+    state.running = false; cancelAnimationFrame(raf); releaseWake();
+    $("status").textContent = "一時停止中"; render();
+  }
+
+  function nextMode() {
+    if (state.mode === "focus") return (state.done % 4 === 0) ? "long" : "short";
+    return "focus";
+  }
+  function complete() {
+    var wasFocus = state.mode === "focus";
+    if (wasFocus) state.done += 1;
+    if (state.mode === "long") state.done = 0;
+    beep();
+    var nm = nextMode();
+    setMode(nm);
+    $("status").textContent = (wasFocus ? "集中が終わりました。次は" : "休憩が終わりました。次は") + LABEL[nm] + "です";
+    if (cfg.auto) start();
+  }
+
+  function ensureAudio() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === "suspended") audio.resume();
+    } catch (e) {}
+  }
+  function beep() {
+    if (!cfg.sound || !audio) return;
+    try {
+      for (var i = 0; i < 3; i++) {
+        var o = audio.createOscillator(), g = audio.createGain(), t0 = audio.currentTime + i * 0.35;
+        o.type = "sine"; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+        o.connect(g); g.connect(audio.destination); o.start(t0); o.stop(t0 + 0.3);
+      }
+    } catch (e) {}
+  }
+  function requestWake() {
+    try { if (navigator.wakeLock) navigator.wakeLock.request("screen").then(function (w) { wake = w; }, function () {}); } catch (e) {}
+  }
+  function releaseWake() { try { if (wake) { wake.release(); wake = null; } } catch (e) {} }
+
+  function save() { try { localStorage.setItem("bar-pomodoro-cfg", JSON.stringify(cfg)); } catch (e) {} }
+
+  $("toggle").onclick = function () { state.running ? pause() : start(); };
+  $("reset").onclick = function () { setMode(state.mode); $("status").textContent = "リセットしました"; };
+  $("skip").onclick = function () {
+    if (state.mode === "focus") state.done += 1;
+    if (state.mode === "long") state.done = 0;
+    setMode(nextMode()); $("status").textContent = LABEL[state.mode] + "に切り替えました";
+  };
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.onclick = function () { setMode(b.getAttribute("data-mode")); $("status").textContent = ""; };
+  });
+  $("full").onclick = function () {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen().catch(function () {});
+    } catch (e) {}
+  };
+  document.addEventListener("keydown", function (ev) {
+    var tag = (ev.target && ev.target.tagName) || "";
+    if (tag === "INPUT" || tag === "BUTTON") return;
+    if (ev.code === "Space") { ev.preventDefault(); $("toggle").click(); }
+    else if (ev.key === "r" || ev.key === "R") $("reset").click();
+    else if (ev.key === "n" || ev.key === "N") $("skip").click();
+  });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && state.running) { cancelAnimationFrame(raf); loop(); requestWake(); } });
+
+  [["focus", "set-focus", 180], ["short", "set-short", 60], ["long", "set-long", 120]].forEach(function (c) {
+    var el = $(c[1]); el.value = cfg[c[0]];
+    el.onchange = function () {
+      var v = Math.max(1, Math.min(c[2], parseInt(el.value, 10) || cfg[c[0]]));
+      el.value = v; cfg[c[0]] = v; save();
+      if (!state.running && state.mode === c[0]) setMode(c[0]);
+    };
+  });
+  $("set-auto").checked = !!cfg.auto; $("set-sound").checked = !!cfg.sound;
+  $("set-auto").onchange = function () { cfg.auto = this.checked; save(); };
+  $("set-sound").onchange = function () { cfg.sound = this.checked; save(); };
+
+  setMode("focus");
+})();
+</script>
+</body>
+</html>
